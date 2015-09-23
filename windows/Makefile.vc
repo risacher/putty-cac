@@ -107,7 +107,7 @@ CFLAGS = $(CFLAGS) /DHAS_GSSAPI
 
 
 all: pageant.exe plink.exe pscp.exe psftp.exe putty.exe puttygen.exe \
-		#puttytel.exe
+		puttytel.exe
 
 pageant.exe: conf.obj misc.obj pageant.res capi.obj sshaes.obj sshbn.obj sshdes.obj \
 		sshdss.obj sshmd5.obj sshpubk.obj sshrsa.obj sshsh256.obj \
@@ -198,7 +198,7 @@ puttytel.exe: be_nos_s.obj callback.obj cmdline.obj conf.obj config.obj \
 		windefs.obj windlg.obj window.obj winhandl.obj winhelp.obj \
 		winhsock.obj winjump.obj winmisc.obj winnet.obj winprint.obj \
 		winproxy.obj winser.obj winstore.obj wintime.obj winucs.obj \
-		winutils.obj puttytel.rsp
+		winutils.obj capi.obj sshbn.obj puttytel.rsp
 	link $(LFLAGS) $(XLFLAGS) -out:puttytel.exe -map:puttytel.map @puttytel.rsp
 
 pageant.rsp: $(MAKEFILE)
@@ -337,7 +337,7 @@ puttytel.rsp: $(MAKEFILE)
 	echo winhsock.obj winjump.obj winmisc.obj winmm.lib >> puttytel.rsp
 	echo winnet.obj winprint.obj winproxy.obj winser.obj >> puttytel.rsp
 	echo winspool.lib winstore.obj wintime.obj winucs.obj >> puttytel.rsp
-	echo winutils.obj >> puttytel.rsp
+	echo winutils.obj capi.obj sshbn.obj >> puttytel.rsp
 
 capi.obj: ..\capi.c ..\ssh.h ..\capi.h ..\puttymem.h ..\tree234.h \
 		..\network.h ..\int64.h ..\misc.h
