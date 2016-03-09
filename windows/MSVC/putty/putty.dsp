@@ -146,6 +146,10 @@ SOURCE=..\..\..\misc.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\..\miscucs.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\noshare.c
 # End Source File
 # Begin Source File
@@ -303,6 +307,10 @@ SOURCE=..\..\..\windows\sizetip.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\..\windows\wincapi.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\windows\wincfg.c
 # End Source File
 # Begin Source File
@@ -431,6 +439,10 @@ SOURCE=..\..\..\ldisc.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\..\licence.h
+# End Source File
+# Begin Source File
+
 SOURCE=..\..\..\macosx\osx.h
 # End Source File
 # Begin Source File
@@ -504,6 +516,10 @@ SOURCE=..\..\..\windows\rcstuff.h
 # Begin Source File
 
 SOURCE=..\..\..\windows\win_res.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\windows\wincapi.h
 # End Source File
 # Begin Source File
 

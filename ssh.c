@@ -366,6 +366,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 			     struct Packet *pktin);
 static void ssh2_channel_check_close(struct ssh_channel *c);
 static void ssh_channel_destroy(struct ssh_channel *c);
+static void ssh2_msg_something_unimplemented(Ssh ssh, struct Packet *pktin);
 
 /*
  * Buffer management constants. There are several of these for
@@ -1748,6 +1749,15 @@ static struct Packet *ssh2_rdpkt(Ssh ssh, unsigned char **data, int *datalen)
 	}
     }
 
+    /*
+     * RFC 4253 doesn't explicitly say that completely empty packets
+     * with no type byte are forbidden, so treat them as deserving
+     * an SSH_MSG_UNIMPLEMENTED.
+     */
+    if (st->pktin->length <= 5) { /* == 5 we hope, but robustness */
+        ssh2_msg_something_unimplemented(ssh, st->pktin);
+        crStop(NULL);
+    }
     /*
      * pktin->body and pktin->length should identify the semantic
      * content of the packet, excluding the initial type byte.
@@ -5415,7 +5425,7 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
     ssh_pkt_getstring(pktin, &host, &hostsize);
     port = ssh_pkt_getuint32(pktin);
 
-    pf.dhost = dupprintf("%.*s", hostsize, host);
+    pf.dhost = dupprintf("%.*s", hostsize, NULLTOEMPTY(host));
     pf.dport = port;
     pfp = find234(ssh->rportfwds, &pf, NULL);
 
@@ -5898,7 +5908,7 @@ static void ssh1_msg_debug(Ssh ssh, struct Packet *pktin)
     int msglen;
 
     ssh_pkt_getstring(pktin, &msg, &msglen);
-    logeventf(ssh, "Remote debug message: %.*s", msglen, msg);
+    logeventf(ssh, "Remote debug message: %.*s", msglen, NULLTOEMPTY(msg));
 }
 
 static void ssh1_msg_disconnect(Ssh ssh, struct Packet *pktin)
@@ -5908,7 +5918,8 @@ static void ssh1_msg_disconnect(Ssh ssh, struct Packet *pktin)
     int msglen;
 
     ssh_pkt_getstring(pktin, &msg, &msglen);
-    bombout(("Server sent disconnect message:\n\"%.*s\"", msglen, msg));
+    bombout(("Server sent disconnect message:\n\"%.*s\"",
+             msglen, NULLTOEMPTY(msg)));
 }
 
 static void ssh_msg_ignore(Ssh ssh, struct Packet *pktin)
@@ -7956,7 +7967,8 @@ static void ssh2_msg_channel_open_failure(Ssh ssh, struct Packet *pktin)
             reason_code = 0; /* ensure reasons[reason_code] in range */
         ssh_pkt_getstring(pktin, &reason_string, &reason_length);
         logeventf(ssh, "Forwarded connection refused by server: %s [%.*s]",
-                  reasons[reason_code], reason_length, reason_string);
+                  reasons[reason_code], reason_length,
+                  NULLTOEMPTY(reason_string));
 
         pfd_close(c->u.pfd.pf);
     } else if (c->type == CHAN_ZOMBIE) {
@@ -8251,9 +8263,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
 	char *addrstr;
 
 	ssh_pkt_getstring(pktin, &peeraddr, &peeraddrlen);
-	addrstr = snewn(peeraddrlen+1, char);
-	memcpy(addrstr, peeraddr, peeraddrlen);
-	addrstr[peeraddrlen] = '\0';
+	addrstr = dupprintf("%.*s", peeraddrlen, NULLTOEMPTY(peeraddr));
 	peerport = ssh_pkt_getuint32(pktin);
 
 	logeventf(ssh, "Received X11 connect request from %s:%d",
@@ -8288,13 +8298,14 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
 	char *shost;
 	int shostlen;
 	ssh_pkt_getstring(pktin, &shost, &shostlen);/* skip address */
-        pf.shost = dupprintf("%.*s", shostlen, shost);
+        pf.shost = dupprintf("%.*s", shostlen, NULLTOEMPTY(shost));
 	pf.sport = ssh_pkt_getuint32(pktin);
 	ssh_pkt_getstring(pktin, &peeraddr, &peeraddrlen);
 	peerport = ssh_pkt_getuint32(pktin);
 	realpf = find234(ssh->rportfwds, &pf, NULL);
 	logeventf(ssh, "Received remote port %s:%d open request "
-		  "from %s:%d", pf.shost, pf.sport, peeraddr, peerport);
+		  "from %.*s:%d", pf.shost, pf.sport,
+                  peeraddrlen, NULLTOEMPTY(peeraddr), peerport);
         sfree(pf.shost);
 
 	if (realpf == NULL) {
@@ -8663,10 +8674,10 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 	} type;
 	int done_service_req;
 	int gotit, need_pw, can_pubkey, can_passwd, can_keyb_inter;
-        /* PuTTY CAPI start */
-        int can_capi, tried_capi, capi_key_loaded;
-        struct capi_keyhandle_struct* capi_keyhandle;
-        /* PuTTY CAPI end */    
+    /* PuTTY CAPI start */
+    int can_capi, tried_capi, capi_key_loaded;
+    struct capi_keyhandle_struct* capi_keyhandle;
+    /* PuTTY CAPI end */
 	int tried_pubkey_config, done_agent;
 #ifndef NO_GSSAPI
 	int can_gssapi;
@@ -8743,7 +8754,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
     s->capi_key_loaded = FALSE;
     s->capi_keyhandle = NULL;
     /* PuTTY CAPI end */
-
+	
     if (!ssh->bare_connection) {
         if (!conf_get_int(ssh->conf, CONF_ssh_no_userauth)) {
             /*
@@ -8831,7 +8842,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		s->publickey_blob = NULL;
 	    }
 	}
-	
+
         /* PuTTY CAPI start */
         else if (conf_get_int(ssh->conf, CONF_try_capi_auth)) {
             logeventf(ssh, "Use CAPI cert (%s)", conf_get_str(ssh->conf, CONF_capi_certID));
@@ -8843,7 +8854,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
                         }
                 }
         /* PuTTY CAPI end */
-	
+		
 	/*
 	 * Find out about any keys Pageant has (but if there's a
 	 * public key configured, filter out all others).
@@ -9174,17 +9185,26 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		    in_commasep_string("publickey", methods, methlen);
         /* PuTTY CAPI start */
         s->can_capi = conf_get_int(ssh->conf, CONF_try_capi_auth) && s->can_pubkey && s->capi_key_loaded;
-        /* PuTTY CAPI end */ 
+        /* PuTTY CAPI end */
 		s->can_passwd =
 		    in_commasep_string("password", methods, methlen);
 		s->can_keyb_inter = conf_get_int(ssh->conf, CONF_try_ki_auth) &&
 		    in_commasep_string("keyboard-interactive", methods, methlen);
 #ifndef NO_GSSAPI
-		if (!ssh->gsslibs)
-		    ssh->gsslibs = ssh_gss_setup(ssh->conf);
-		s->can_gssapi = conf_get_int(ssh->conf, CONF_try_gssapi_auth) &&
-		    in_commasep_string("gssapi-with-mic", methods, methlen) &&
-		    ssh->gsslibs->nlibraries > 0;
+                if (conf_get_int(ssh->conf, CONF_try_gssapi_auth) &&
+		    in_commasep_string("gssapi-with-mic", methods, methlen)) {
+                    /* Try loading the GSS libraries and see if we
+                     * have any. */
+                    if (!ssh->gsslibs)
+                        ssh->gsslibs = ssh_gss_setup(ssh->conf);
+                    s->can_gssapi = (ssh->gsslibs->nlibraries > 0);
+                } else {
+                    /* No point in even bothering to try to load the
+                     * GSS libraries, if the user configuration and
+                     * server aren't both prepared to attempt GSSAPI
+                     * auth in the first place. */
+                    s->can_gssapi = FALSE;
+                }
 #endif
 	    }
 
@@ -9339,10 +9359,10 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 			s->done_agent = TRUE;
 		}
 
-                /* PuTTY CAPI marker */
-            } else if ((s->can_pubkey && s->publickey_blob &&
-                        !s->tried_pubkey_config) ||
-                        (s->can_capi && s->publickey_blob && !s->tried_capi)) {
+			/* PuTTY CAPI marker */
+	    } else if ((s->can_pubkey && s->publickey_blob &&
+		       !s->tried_pubkey_config) ||
+			   (s->can_capi && s->publickey_blob && !s->tried_capi)) {
 
 		struct ssh2_userkey *key;   /* not live over crReturn */
 		char *passphrase;	    /* not live over crReturn */
@@ -9350,7 +9370,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 	    /* PuTTY CAPI start */
                 if (s->can_capi)
                         s->tried_capi = TRUE;
-        /* PuTTY CAPI end */	
+        /* PuTTY CAPI end */
 		
 		ssh->pkt_actx = SSH2_PKTCTX_PUBLICKEY;
 
@@ -9437,8 +9457,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		    /*
 		     * Try decrypting the key.
 		     */
-			s->keyfile = conf_get_filename(ssh->conf, CONF_keyfile);
-
+		    s->keyfile = conf_get_filename(ssh->conf, CONF_keyfile);
 			 /* PuTTY CAPI start */
             if(s->can_capi && s->capi_key_loaded) {/*chained off the else above*/
                                 if (capi_get_key_handle(ssh->frontend, conf_get_str(ssh->conf, CONF_capi_certID), &s->capi_keyhandle)) {
@@ -9451,7 +9470,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
                         }
 			else
 				/* PuTTY CAPI end */
-			key = ssh2_load_userkey(s->keyfile, passphrase, &error);
+		    key = ssh2_load_userkey(s->keyfile, passphrase, &error);
 		    if (passphrase) {
 			/* burn the evidence */
 			smemclr(passphrase, strlen(passphrase));
@@ -9474,23 +9493,23 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		}
 
 		if (key) {
-			unsigned char *pkblob, *sigblob, *sigdata;
-			int pkblob_len, sigblob_len, sigdata_len;
-			int p;
+		    unsigned char *pkblob, *sigblob, *sigdata;
+		    int pkblob_len, sigblob_len, sigdata_len;
+		    int p;
 
-			/*
-			 * We have loaded the private key and the server
-			 * has announced that it's willing to accept it.
-			 * Hallelujah. Generate a signature and send it.
-			 */
-			s->pktout = ssh2_pkt_init(SSH2_MSG_USERAUTH_REQUEST);
-			ssh2_pkt_addstring(s->pktout, ssh->username);
-			ssh2_pkt_addstring(s->pktout, "ssh-connection");
-			/* service requested */
-			ssh2_pkt_addstring(s->pktout, "publickey");
-			/* method */
-			ssh2_pkt_addbool(s->pktout, TRUE);
-			/* signature follows */
+		    /*
+		     * We have loaded the private key and the server
+		     * has announced that it's willing to accept it.
+		     * Hallelujah. Generate a signature and send it.
+		     */
+		    s->pktout = ssh2_pkt_init(SSH2_MSG_USERAUTH_REQUEST);
+		    ssh2_pkt_addstring(s->pktout, ssh->username);
+		    ssh2_pkt_addstring(s->pktout, "ssh-connection");
+						    /* service requested */
+		    ssh2_pkt_addstring(s->pktout, "publickey");
+						    /* method */
+		    ssh2_pkt_addbool(s->pktout, TRUE);
+						    /* signature follows */
 /* PuTTY CAPI start */
 			if (s->capi_keyhandle) {
 				ssh2_pkt_addstring(s->pktout, s->capi_keyhandle->algorithm);
@@ -9500,39 +9519,39 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 			}
 			else {
 				/* PuTTY CAPI end */
-				ssh2_pkt_addstring(s->pktout, key->alg->name);
-				pkblob = key->alg->public_blob(key->data,
-					&pkblob_len);
+		    ssh2_pkt_addstring(s->pktout, key->alg->name);
+		    pkblob = key->alg->public_blob(key->data,
+						   &pkblob_len);
 			}
-			ssh2_pkt_addstring_start(s->pktout);
-			ssh2_pkt_addstring_data(s->pktout, (char *)pkblob,
-				pkblob_len);
+		    ssh2_pkt_addstring_start(s->pktout);
+		    ssh2_pkt_addstring_data(s->pktout, (char *)pkblob,
+					    pkblob_len);
 
-			/*
-			 * The data to be signed is:
-			 *
-			 *   string  session-id
-			 *
-			 * followed by everything so far placed in the
-			 * outgoing packet.
-			 */
-			sigdata_len = s->pktout->length - 5 + 4 +
-				ssh->v2_session_id_len;
-			if (ssh->remote_bugs & BUG_SSH2_PK_SESSIONID)
-				sigdata_len -= 4;
-			sigdata = snewn(sigdata_len, unsigned char);
-			p = 0;
-			if (!(ssh->remote_bugs & BUG_SSH2_PK_SESSIONID)) {
-				PUT_32BIT(sigdata + p, ssh->v2_session_id_len);
-				p += 4;
-			}
-			memcpy(sigdata + p, ssh->v2_session_id,
-				ssh->v2_session_id_len);
-			p += ssh->v2_session_id_len;
-			memcpy(sigdata + p, s->pktout->data + 5,
-				s->pktout->length - 5);
-			p += s->pktout->length - 5;
-			assert(p == sigdata_len);
+		    /*
+		     * The data to be signed is:
+		     *
+		     *   string  session-id
+		     *
+		     * followed by everything so far placed in the
+		     * outgoing packet.
+		     */
+		    sigdata_len = s->pktout->length - 5 + 4 +
+			ssh->v2_session_id_len;
+		    if (ssh->remote_bugs & BUG_SSH2_PK_SESSIONID)
+			sigdata_len -= 4;
+		    sigdata = snewn(sigdata_len, unsigned char);
+		    p = 0;
+		    if (!(ssh->remote_bugs & BUG_SSH2_PK_SESSIONID)) {
+			PUT_32BIT(sigdata+p, ssh->v2_session_id_len);
+			p += 4;
+		    }
+		    memcpy(sigdata+p, ssh->v2_session_id,
+			   ssh->v2_session_id_len);
+		    p += ssh->v2_session_id_len;
+		    memcpy(sigdata+p, s->pktout->data + 5,
+			   s->pktout->length - 5);
+		    p += s->pktout->length - 5;
+		    assert(p == sigdata_len);
 			/* PuTTY CAPI start */
 			if (s->capi_key_loaded && (s->capi_keyhandle != NULL)) { /* chained off else from above */
 				if ((sigblob = capi_sig(s->capi_keyhandle, sigdata, sigdata_len, &sigblob_len)) == NULL) {
@@ -9544,28 +9563,28 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 				}
 			}
 			else
-				/* PuTTY CAPI end */
-				sigblob = key->alg->sign(key->data, (char *)sigdata,
-					sigdata_len, &sigblob_len);
-			ssh2_add_sigblob(ssh, s->pktout, pkblob, pkblob_len,
-				sigblob, sigblob_len);
-			sfree(pkblob);
-			sfree(sigblob);
-			sfree(sigdata);
+			/* PuTTY CAPI end */
+		    sigblob = key->alg->sign(key->data, (char *)sigdata,
+					     sigdata_len, &sigblob_len);
+		    ssh2_add_sigblob(ssh, s->pktout, pkblob, pkblob_len,
+				     sigblob, sigblob_len);
+		    sfree(pkblob);
+		    sfree(sigblob);
+		    sfree(sigdata);
 
-			ssh2_pkt_send(ssh, s->pktout);
-			logevent("Sent public key signature");
-			s->type = AUTH_TYPE_PUBLICKEY;
+		    ssh2_pkt_send(ssh, s->pktout);
+                    logevent("Sent public key signature");
+		    s->type = AUTH_TYPE_PUBLICKEY;
 			/* PuTTY CAPI start */
 			if (s->capi_key_loaded || s->capi_keyhandle) { /* chained off else from above */
 				capi_release_key(&s->capi_keyhandle);
 				s->capi_key_loaded = FALSE;
 				key = NULL;
 			} else {
-				/* PuTTY CAPI end */
-				key->alg->freekey(key->data);
-				sfree(key->comment);
-				sfree(key);
+			/* PuTTY CAPI end */
+		    key->alg->freekey(key->data);
+                    sfree(key->comment);
+                    sfree(key);
 			}
 		}
 
@@ -10020,7 +10039,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		    s->cur_prompt->to_server = TRUE;
 		    s->cur_prompt->name = dupstr("New SSH password");
 		    s->cur_prompt->instruction =
-			dupprintf("%.*s", prompt_len, prompt);
+			dupprintf("%.*s", prompt_len, NULLTOEMPTY(prompt));
 		    s->cur_prompt->instr_reqd = TRUE;
 		    /*
 		     * There's no explicit requirement in the protocol
@@ -10457,13 +10476,13 @@ static void ssh2_msg_disconnect(Ssh ssh, struct Packet *pktin)
     logevent(buf);
     sfree(buf);
     buf = dupprintf("Disconnection message text: %.*s",
-		    msglen, msg);
+		    msglen, NULLTOEMPTY(msg));
     logevent(buf);
     bombout(("Server sent disconnect message\ntype %d (%s):\n\"%.*s\"",
 	     reason,
 	     (reason > 0 && reason < lenof(ssh2_disconnect_reasons)) ?
 	     ssh2_disconnect_reasons[reason] : "unknown",
-	     msglen, msg));
+	     msglen, NULLTOEMPTY(msg)));
     sfree(buf);
 }
 
@@ -10477,7 +10496,7 @@ static void ssh2_msg_debug(Ssh ssh, struct Packet *pktin)
     ssh2_pkt_getbool(pktin);
     ssh_pkt_getstring(pktin, &msg, &msglen);
 
-    logeventf(ssh, "Remote debug message: %.*s", msglen, msg);
+    logeventf(ssh, "Remote debug message: %.*s", msglen, NULLTOEMPTY(msg));
 }
 
 static void ssh2_msg_transport(Ssh ssh, struct Packet *pktin)

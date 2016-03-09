@@ -1640,7 +1640,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 		 HELPCTX(logging_filename),
 		 conf_filesel_handler, I(CONF_logfilename));
     ctrl_text(s, "(Log file name can contain &Y, &M, &D for date,"
-	      " &T for time, and &H for host name)",
+	      " &T for time, &H for host name, and &P for port number)",
 	      HELPCTX(logging_filename));
     ctrl_radiobuttons(s, "What to do if the log file already exists:", 'e', 1,
 		      HELPCTX(logging_exists),
@@ -2467,11 +2467,6 @@ void setup_config_box(struct controlbox *b, int midsession,
 
 	if (!midsession) {
 	                 /* PuTTY CAPI start */
-
-
-
-
-
 #ifdef _WINDOWS
           /*
            * The Connection/SSH/CAPI panel.
@@ -2494,31 +2489,6 @@ void setup_config_box(struct controlbox *b, int midsession,
                                          capi_certstore_handler, P(capid));
 
             ctrl_columns(s, 2, 75, 25);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 capid->certID_text =
                         ctrl_editbox(s, "Cert:", NO_SHORTCUT, 80,
                         HELPCTX(ssh_auth_capi_certstore_label),
@@ -2527,45 +2497,22 @@ void setup_config_box(struct controlbox *b, int midsession,
                         );
             capid->certID_text->generic.column = 0;
             capid->cert_browse = ctrl_pushbutton(s, "Browse", NO_SHORTCUT,
-
-
                         HELPCTX(ssh_auth_capi),
                         capi_certstore_browse_handler, P(capid));
             capid->cert_browse->generic.column = 1;
-
-
-
-
-
-
-
-
-
-
-
-
-
                 capid->keystring_text = ctrl_editbox(s, "SSH keystring:",
                         NO_SHORTCUT, 100, HELPCTX(ssh_auth_capi),
                         conf_editbox_handler, P(NULL), P(NULL));
-
-                
-
-
 /*                m_label_ctrl = ctrl_combobox(s, "Certificate Store:",
                         NO_SHORTCUT, 70, HELPCTX(ssh_auth_capi_certstore_label),
                         capi_certstore_handler, P(NULL), P(NULL));
           m_cert_ctrl = ctrl_combobox(s, "Certificate fingerprint:",
                         NO_SHORTCUT, 70, HELPCTX(ssh_auth_capi_certfingerprint_label),
                         capi_certfingerprint_handler, P(NULL), P(NULL));
-
-
           m_keystring_ctrl = ctrl_editbox(s, "SSH keystring:",
                         NO_SHORTCUT, 100, HELPCTX(ssh_auth_pkcs11_cert_label),
                         capi_keystring_handler, P(NULL), P(NULL));
 */
-
-
 #endif
                 /* PuTTY CAPI end */
 

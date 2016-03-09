@@ -459,7 +459,7 @@ char *fgetline(FILE *fp)
     int size = 512, len = 0;
     while (fgets(ret + len, size - len, fp)) {
 	len += strlen(ret + len);
-	if (ret[len-1] == '\n')
+	if (len > 0 && ret[len-1] == '\n')
 	    break;		       /* got a newline, we're done */
 	size = len + 512;
 	ret = sresize(ret, size, char);
@@ -736,7 +736,7 @@ void *safemalloc(size_t n, size_t size)
 #else
 	strcpy(str, "Out of memory!");
 #endif
-	modalfatalbox(str);
+	modalfatalbox("%s", str);
     }
 #ifdef MALLOC_LOG
     if (fp)
@@ -778,7 +778,7 @@ void *saferealloc(void *ptr, size_t n, size_t size)
 #else
 	strcpy(str, "Out of memory!");
 #endif
-	modalfatalbox(str);
+	modalfatalbox("%s", str);
     }
 #ifdef MALLOC_LOG
     if (fp)
@@ -1034,4 +1034,15 @@ int smemeq(const void *av, const void *bv, size_t len)
      * will clear bit 8 iff we want to return 0, and leave it set iff
      * we want to return 1, so then we can just shift down. */
     return (0x100 - val) >> 8;
+}
+
+int strstartswith(const char *s, const char *t)
+{
+    return !memcmp(s, t, strlen(t));
+}
+
+int strendswith(const char *s, const char *t)
+{
+    size_t slen = strlen(s), tlen = strlen(t);
+    return slen >= tlen && !strcmp(s + (slen - tlen), t);
 }
