@@ -152,7 +152,7 @@ struct CAPI_PUBKEY_BIT_BLOB_struct {
 //	BYTE modulus[0];
 };
 
-BOOL capi_get_cert_handle(char* certID, PCCERT_CONTEXT* oCertContext) {
+BOOL capi_get_cert_handle(const char* certID, PCCERT_CONTEXT* oCertContext) {
 	BOOL retval = FALSE;
     PCCERT_CONTEXT pCertContext = NULL, pFindCertContext = NULL;
 	HCERTSTORE hStore = NULL;
@@ -546,7 +546,7 @@ cleanup:
 	return retval;
 }
 
-unsigned char* capi_sig_certID(char* certID, char *sigdata, int sigdata_len, int *sigblob_len) {
+unsigned char* capi_sig_certID(char* certID, const char *sigdata, int sigdata_len, int *sigblob_len) {
 	BOOL success = FALSE;
 	unsigned char* retval = NULL, *rawsig = NULL, *p;
 	HCRYPTHASH hash = 0;
@@ -749,34 +749,34 @@ void capi_release_key(struct capi_keyhandle_struct** keyhandle) {
 	return;
 }
 
-struct CAPI_userkey* Create_CAPI_userkey(const char* certID, PCERT_CONTEXT pCertContext) {
+struct capi_userkey* Create_capi_userkey(const char* certID, PCERT_CONTEXT pCertContext) {
 	BOOL success = FALSE;
-	struct CAPI_userkey* retval = NULL;
+	struct capi_userkey* retval = NULL;
 	PCERT_CONTEXT LpCertContext = NULL;
 
 	if (pCertContext == NULL) {
 		if (!capi_get_cert_handle(certID, &LpCertContext)) {
-			debuglog("Create_CAPI_userkey: capi_get_cert_handle failed\n");
+			debuglog("Create_capi_userkey: capi_get_cert_handle failed\n");
 			goto cleanup;
 		}
 		pCertContext = LpCertContext;
 	}
 
-	if ((retval = malloc(sizeof(struct CAPI_userkey))) == NULL) {
-		debuglog("Create_CAPI_userkey: malloc for retval failed\n");
+	if ((retval = malloc(sizeof(struct capi_userkey))) == NULL) {
+		debuglog("Create_capi_userkey: malloc for retval failed\n");
 		goto cleanup;
 	}
 	retval->certID = NULL;
 	retval->blob = NULL;
 
 	if ((retval->certID = malloc(strlen(certID) + 1)) == NULL) {
-		debuglog("Create_CAPI_userkey: malloc for certID failed\n");
+		debuglog("Create_capi_userkey: malloc for certID failed\n");
 		goto cleanup;
 	}
 	strcpy(retval->certID, certID);
 
 	if (!capi_get_pubkey_blob(pCertContext, &retval->blob, &retval->bloblen)) {
-		debuglog("Create_CAPI_userkey: capi_get_pubkey_blob failed\n");
+		debuglog("Create_capi_userkey: capi_get_pubkey_blob failed\n");
 		goto cleanup;
 	}
 
@@ -787,12 +787,12 @@ cleanup:
 	LpCertContext = NULL;
 
 	if (!success) {
-		Free_CAPI_userkey(retval);
+		Free_capi_userkey(retval);
 		retval = NULL;
 	}
 	return retval;
 }
-void Free_CAPI_userkey(struct CAPI_userkey* ckey) {
+void Free_capi_userkey(struct capi_userkey* ckey) {
 	if (ckey->certID)
 		free(ckey->certID);
 	ckey->certID = NULL;
@@ -804,12 +804,12 @@ void Free_CAPI_userkey(struct CAPI_userkey* ckey) {
 	free(ckey);
 }
 
-char* CAPI_userkey_GetComment(struct CAPI_userkey* ckey) {
+char* capi_userkey_GetComment(struct capi_userkey* ckey) {
 	char *retval = NULL;
 	
-	debuglog("CAPI_userkey_GetComment: called\n");
+	debuglog("capi_userkey_GetComment: called\n");
 	if ((retval = malloc(5 + strlen(ckey->certID) + 1)) == NULL) {
-		debuglog("CAPI_userkey_GetComment: malloc failed\n");
+		debuglog("capi_userkey_GetComment: malloc failed\n");
 		return NULL;
 	}
 	sprintf(retval, "CAPI:%s", ckey->certID);
